@@ -1,6 +1,8 @@
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.response import Response
 from rest_framework.decorators import api_view
+from rest_framework import status
+
 from main import models
 from . import serializers
 
@@ -23,9 +25,22 @@ class UserRelationViewSet(ModelViewSet):
     serializer_class = serializers.UserRelationSerializer
 
 
+
 class ChatViewSet(ModelViewSet):
     queryset = models.Chat.objects.all()
     serializer_class = serializers.ChatSerializer
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+
+        messages = models.Message.objects.filter(chat=instance)
+        message_serializer = serializers.MessageSerializer(messages, many=True)
+
+        data = serializer.data
+        data['messages'] = message_serializer.data
+
+        return Response(data, status=status.HTTP_200_OK)
 
 
 class MessageViewSet(ModelViewSet):
@@ -100,20 +115,3 @@ message_detail_viewset = MessageViewSet.as_view({
     'patch': 'partial_update',
     'delete': 'destroy'
 })
-
-
-
-
-
-# class MyModelView(ModelViewSet):
-#     queryset = models.MyModel.objects.all() 
-#     serializer_class = serializers.MyModelSerializer
-
-
-#     def get_queryset(self):
-#         queryset = models.MyModel.objects.all()
-#         return queryset
- 
-# @api_view(['GET'])
-# def list_data(request):
-#     return Response([])

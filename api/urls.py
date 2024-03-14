@@ -23,9 +23,12 @@ urlpatterns = [
     path('users/', views.user_viewset, name='user-list'),
     path('users/<int:pk>/', views.user_detail_viewset, name='user-detail'),
     path('user-relations/', views.user_relation_viewset, name='user-relation-list'),
+
     path('chats/', views.chat_viewset, name='chat-list'),
     path('chats/<int:pk>/', views.chat_detail_viewset, name='chat-detail'),
+
     path('messages/', views.message_viewset, name='message-list'),
     path('messages/<int:pk>/', views.message_detail_viewset, name='message-detail'),
+    
     # path('', views.list_data)
 ]
