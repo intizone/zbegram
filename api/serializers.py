@@ -49,4 +49,19 @@ class ChatListSerializer(ModelSerializer):
 class PostSerializer(ModelSerializer):
     class Meta:
         model = models.Post
+        fields = ['author', 'title', 'body']
+
+class PostFilesSerializer(ModelSerializer):
+    class Meta:
+        model = models.PostFiles
+        fields = '__all__'
+
+class CommentSerializer(ModelSerializer):
+    class Meta:
+        model = models.Comment
+        fields = ['author', 'post', 'text', 'reply']
+
+class LikeSerializer(ModelSerializer):
+    class Meta:
+        model = models.Like
         fields = '__all__'

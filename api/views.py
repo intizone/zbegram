@@ -1,15 +1,20 @@
 from django.db.models import Q
-
-from rest_framework.views import APIView
-from rest_framework.decorators import api_view
-from rest_framework.response import Response
-from rest_framework import status
-
 from main import models
 from . import serializers
 
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.authentication import SessionAuthentication, BasicAuthentication
+from rest_framework.views import APIView
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
+from rest_framework import status   
+
+
 
 class UserAPIView(APIView):
+    authentication_classes = [SessionAuthentication, BasicAuthentication]
+    permission_classes = [IsAuthenticated]
+
     def get(self, request, *args, **kwargs):
         q = request.GET.get('q')
         # way 1
@@ -64,6 +69,8 @@ class UserAPIView(APIView):
     
     
 class UserRelationAPIView(APIView):
+    authentication_classes = [SessionAuthentication, BasicAuthentication]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request, *args, **kwargs):
         user = request.user
@@ -101,6 +108,9 @@ class UserRelationAPIView(APIView):
     
     
 class ChatAPIView(APIView):
+    authentication_classes = [SessionAuthentication, BasicAuthentication]
+    permission_classes = [IsAuthenticated]
+
     def post(self, request, *args, **kwargs):
         serializer = serializers.ChatSerializer(data=request.data)
         if serializer.is_valid():
@@ -131,6 +141,9 @@ class ChatAPIView(APIView):
     
     
 class MassageAPIView(APIView):
+    authentication_classes = [SessionAuthentication, BasicAuthentication]
+    permission_classes = [IsAuthenticated]
+
     def post(self, request, *args, **kwargs):
         serializer = serializers.MassageSerializer(data=request.data)
         if serializer.is_valid():
@@ -177,6 +190,9 @@ def follower(request, pk):
 
 
 class PostAPIView(APIView):
+    authentication_classes = [SessionAuthentication, BasicAuthentication]
+    permission_classes = [IsAuthenticated]
+
     def post(self, request, *args, **kwargs):
         serializer = serializers.PostSerializer(data=request.data)
         if serializer.is_valid():
@@ -227,24 +243,51 @@ def post_filter(request, pk):
     return serializer.data
 
 class LikeAPIView(APIView):
-    def post(self, request, *args, **kwargs):
-        post = models.Post.objects.get(pk=request.data['post'])
-        like = models.Like.objects.create(
-            post=post,
-            user=request.user
-        )
-        return Response(status=status.HTTP_201_CREATED)
+    authentication_classes = [SessionAuthentication, BasicAuthentication]
+    permission_classes = [IsAuthenticated]
 
+    def post(self, request, *args, **kwargs):
+        serializer = serializers.LikeSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
     def delete(self, request, pk, *args, **kwargs):
-        like = models.Like.objects.get(pk=pk)
+        try:
+            like = models.Like.objects.get(pk=pk)
+            assert like.author == request.user
+        except models.Like.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
         like.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
     
+    def get(self, request, pk=None, format=None):
+        if pk:
+            try:
+                instance = models.Like.objects.get(pk=pk)
+            except models.Like.DoesNotExist:
+                return Response({"message": "Object not found"}, status=status.HTTP_404_NOT_FOUND)
+
+            serializer = serializers.LikeSerializer(instance)
+            return Response(serializer.data)
+        else:
+            likes = models.Like.objects.all()
+            serializer = serializers.LikeSerializer(likes, many=True)
+            return Response(serializer.data)
+        
     def put(self, request, pk, *args, **kwargs):
-        like = models.Like.objects.get(pk=pk)
-        like.status = request.data['status']
-        like.save()
-        return Response(status=status.HTTP_200_OK)
+        try:
+            like = models.Like.objects.get(pk=pk)
+            assert like.author == request.user
+        except models.Like.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        serializer = serializers.LikeSerializer(like, data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
 @api_view
 def like_filter(request, pk):
@@ -253,6 +296,9 @@ def like_filter(request, pk):
     return serializer.data
 
 class CommentAPIView(APIView):
+    authentication_classes = [SessionAuthentication, BasicAuthentication]
+    permission_classes = [IsAuthenticated]
+
     def post(self, request, *args, **kwargs):
         serializer = serializers.CommentSerializer(data=request.data)
         if serializer.is_valid():
