@@ -1,117 +1,297 @@
-from rest_framework.viewsets import ModelViewSet
-from rest_framework.response import Response
+from django.db.models import Q
+
+from rest_framework.views import APIView
 from rest_framework.decorators import api_view
+from rest_framework.response import Response
 from rest_framework import status
 
 from main import models
 from . import serializers
 
 
+class UserAPIView(APIView):
+    def get(self, request, *args, **kwargs):
+        q = request.GET.get('q')
+        # way 1
+        users = models.User.objects.all()
+        if q:
+            users.filter(
+                Q(username__icontains=q)| 
+                Q(first_name__iconatins=q)| 
+                Q(last_name__iconatins=q)|
+                Q(email__icontains=q)
+                )
+        # way 2
+        # if q:
+        #     users = models.User.objects.filter(
+        #         Q(username__icontains=q)| 
+        #         Q(first_name__iconatins=q)| 
+        #         Q(last_name__iconatins=q)|
+        #         Q(email__icontains=q)
+        #     )
+        # else:
+        #     users = models.User.objects.all()
 
-class UserViewSet(ModelViewSet):
-    queryset = models.User.objects.all()
-    serializer_class = serializers.UserSerializer
+        serializer = serializers.UserSerializer(users, many=True)
+        return Response(serializer.data)
 
-    def get_queryset(self):
-        queryset = models.User.objects.all()
-        username = self.request.query_params.get('username', None)
-        if username is not None:
-            queryset = queryset.filter(username=username)
-        return queryset
+    def post(self, request, *args, **kwargs):
+        serializer = serializers.UserSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    def put(self, request, pk, *args, **kwargs):
+        try:
+            user = request.user
+        except models.User.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        serializer = serializers.UserSerializer(user, data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def delete(self, request, *args, **kwargs):
+        try:
+            user = request.user
+        except models.User.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        user.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+    
+    
+class UserRelationAPIView(APIView):
+
+    def get(self, request, *args, **kwargs):
+        user = request.user
+        following = models.UserReletion.objects.filter(from_user=user)
+        follower = models.UserReletion.objects.filter(to_user=user)
+        following_ser = serializers.FollowingSerializer(following, many=True)
+        follower_ser = serializers.FollowerSerializer(follower, many=True)
+        data = {
+            'following':following_ser.data,
+            'follower':follower_ser.data,
+        }
+        return Response(data)
 
 
-class UserRelationViewSet(ModelViewSet):
-    queryset = models.UserRelation.objects.all()
-    serializer_class = serializers.UserRelationSerializer
+    def post(self, request, *args, **kwargs):
+        try:
+            from_user = request.user
+            to_user = request.data['to_user']
+            models.UserReletion.objects.create(from_user=from_user, to_user=to_user)
+            return Response(status=status.HTTP_201_CREATED)
+        except:
+            return Response(status=status.HTTP_400_BAD_REQUEST)
 
+    def delete(self, request, pk, *args, **kwargs):
+        try:
+            to_user = models.User.objects.get(pk=pk)
+            reletion = models.UserReletion.objects.get(
+                from_user=request.user,
+                to_user = to_user
+                )
+            reletion.delete()
+            return Response(status=status.HTTP_200_OK)
+        except models.UserReletion.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+    
+    
+class ChatAPIView(APIView):
+    def post(self, request, *args, **kwargs):
+        serializer = serializers.ChatSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+    def get(self, request, pk=None, format=None):
+        user = request.user
+        chats = models.Chat.objects.filter(users=user)
+        chats_ser = serializers.ChatListSerializer(chats)
+        return Response(chats_ser.data)
+        # try:
+        #     instance = models.Chat.objects.get(pk=pk)
+        # except models.Chat.DoesNotExist:
+        #     return Response({"message": "Object not found"}, status=status.HTTP_404_NOT_FOUND)
 
-class ChatViewSet(ModelViewSet):
-    queryset = models.Chat.objects.all()
-    serializer_class = serializers.ChatSerializer
+        # serializer = serializers.ChatSerializer(instance)
+        # return Response(serializer.data)
 
-    def retrieve(self, request, *args, **kwargs):
-        instance = self.get_object()
-        serializer = self.get_serializer(instance)
+    def delete(self, request, pk, *args, **kwargs):
+        try:
+            chat = models.Chat.objects.get(pk=pk)
+        except models.Chat.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        chat.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+    
+    
+class MassageAPIView(APIView):
+    def post(self, request, *args, **kwargs):
+        serializer = serializers.MassageSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        messages = models.Message.objects.filter(chat=instance)
-        message_serializer = serializers.MessageSerializer(messages, many=True)
+    def put(self, request, pk, *args, **kwargs):
+        try:
+            massage = models.Message.objects.get(pk=pk)
+            assert massage.author == request.user
+        except models.Message.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
 
-        data = serializer.data
-        data['messages'] = message_serializer.data
+        serializer = serializers.MassageSerializer(massage, data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        return Response(data, status=status.HTTP_200_OK)
-
-
-class MessageViewSet(ModelViewSet):
-    queryset = models.Message.objects.all()
-    serializer_class = serializers.MessageSerializer
-
-# class PostViewSet(ModelViewSet):
-#     queryset = models.Post.objects.all()
-#     serializer_class = serializers.PostSerializer
-
-# class PostFilesViewSet(ModelViewSet):
-#     queryset = models.PostFiles.objects.all()
-#     serializer_class = serializers.PostFilesSerializer
-
-# class CommentViewSet(ModelViewSet):
-#     queryset = models.Comment.objects.all()
-#     serializer_class = serializers.CommentSerializer
-
-# class LikeViewSet(ModelViewSet):
-#     queryset = models.Like.objects.all()
-#     serializer_class = serializers.LikeSerializer
-
-# class AuthViewSet(ModelViewSet):
-#     queryset = models.User.objects.all()
-#     serializer_class = serializers.UserSerializer
-
-#     def get_queryset(self):
-#         queryset = models.User.objects.all()
-#         username = self.request.query_params.get('username', None)
-#         password = self.request.query_params.get('password', None)
-#         if username is not None and password is not None:
-#             queryset = queryset.filter(username=username, password=password)
-#         return queryset
+    def delete(self, request, pk, *args, **kwargs):
+        try:
+            massage = models.Message.objects.get(pk=pk)
+            assert massage.author == request.user
+        except models.Message.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        massage.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
     
 
+@api_view
+def following(request, pk):
+    user = models.User.objects.get(pk=pk)
+    user_reletion = models.UserReletion.objects.filter(from_user=user)
+    serializer_data = serializers.FollowingSerializer(user_reletion, many=True)
+    return serializer_data.data
 
-user_viewset = UserViewSet.as_view({
-    'get': 'list',
-    'post': 'create'
-})
+@api_view
+def follower(request, pk):
+    user = models.User.objects.get(pk=pk)
+    user_reletion = models.UserReletion.objects.filter(to_user=user)
+    serializer_data = serializers.FollowerSerializer(user_reletion, many=True)
+    return serializer_data.data
 
-user_detail_viewset = UserViewSet.as_view({
-    'get': 'retrieve',
-    'put': 'update',
-    'patch': 'partial_update',
-    'delete': 'destroy'
-})
 
-user_relation_viewset = UserRelationViewSet.as_view({
-    'post': 'create',
-    'delete': 'destroy'
-})
+class PostAPIView(APIView):
+    def post(self, request, *args, **kwargs):
+        serializer = serializers.PostSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-chat_viewset = ChatViewSet.as_view({
-    'get': 'list',
-    'post': 'create'
-})
+    def get(self, request, pk=None, format=None):
+        if pk:
+            try:
+                instance = models.Post.objects.get(pk=pk)
+            except models.Post.DoesNotExist:
+                return Response({"message": "Object not found"}, status=status.HTTP_404_NOT_FOUND)
 
-chat_detail_viewset = ChatViewSet.as_view({
-    'get': 'retrieve',
-    'delete': 'destroy'
-})
+            serializer = serializers.PostSerializer(instance)
+            return Response(serializer.data)
+        else:
+            posts = models.Post.objects.all()
+            serializer = serializers.PostSerializer(posts, many=True)
+            return Response(serializer.data)
 
-message_viewset = MessageViewSet.as_view({
-    'get': 'list',
-    'post': 'create'
-})
+    def put(self, request, pk, *args, **kwargs):
+        try:
+            post = models.Post.objects.get(pk=pk)
+            assert post.author == request.user
+        except models.Post.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
 
-message_detail_viewset = MessageViewSet.as_view({
-    'get': 'retrieve',
-    'put': 'update',
-    'patch': 'partial_update',
-    'delete': 'destroy'
-})
+        serializer = serializers.PostSerializer(post, data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def delete(self, request, pk, *args, **kwargs):
+        try:
+            post = models.Post.objects.get(pk=pk)
+            assert post.author == request.user
+        except models.Post.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        post.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+    
+@api_view
+def post_filter(request, pk):
+    posts = models.Post.objects.filter(author=pk)
+    serializer = serializers.PostSerializer(posts, many=True)
+    return serializer.data
+
+class LikeAPIView(APIView):
+    def post(self, request, *args, **kwargs):
+        post = models.Post.objects.get(pk=request.data['post'])
+        like = models.Like.objects.create(
+            post=post,
+            user=request.user
+        )
+        return Response(status=status.HTTP_201_CREATED)
+
+    def delete(self, request, pk, *args, **kwargs):
+        like = models.Like.objects.get(pk=pk)
+        like.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+    
+    def put(self, request, pk, *args, **kwargs):
+        like = models.Like.objects.get(pk=pk)
+        like.status = request.data['status']
+        like.save()
+        return Response(status=status.HTTP_200_OK)
+    
+@api_view
+def like_filter(request, pk):
+    likes = models.Like.objects.filter(post=pk)
+    serializer = serializers.LikeSerializer(likes, many=True)
+    return serializer.data
+
+class CommentAPIView(APIView):
+    def post(self, request, *args, **kwargs):
+        serializer = serializers.CommentSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def get(self, request, pk=None, format=None):
+        if pk:
+            try:
+                instance = models.Comment.objects.get(pk=pk)
+            except models.Comment.DoesNotExist:
+                return Response({"message": "Object not found"}, status=status.HTTP_404_NOT_FOUND)
+
+            serializer = serializers.CommentSerializer(instance)
+            return Response(serializer.data)
+        else:
+            comments = models.Comment.objects.all()
+            serializer = serializers.CommentSerializer(comments, many=True)
+            return Response(serializer.data)
+
+    def put(self, request, pk, *args, **kwargs):
+        try:
+            comment = models.Comment.objects.get(pk=pk)
+            assert comment.author == request.user
+        except models.Comment.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        serializer = serializers.CommentSerializer(comment, data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def delete(self, request, pk, *args, **kwargs):
+        try:
+            comment = models.Comment.objects.get(pk=pk)
+            assert comment.author == request.user
+        except models.Comment.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        comment.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)

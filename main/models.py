@@ -11,7 +11,7 @@ class User(AbstractUser):
         return self.username
     
 
-class UserRelation(models.Model):
+class UserReletion(models.Model):
     from_user = models.ForeignKey(User, on_delete=models.CASCADE, related_name ='+')
     to_user = models.ForeignKey(User, on_delete=models.CASCADE, related_name ='to')
 
@@ -26,6 +26,21 @@ class Chat(models.Model):
         if len(self.users) > 2:
             raise AssertionError('Bu shaxsiy')
         super(Chat, self).save(*args, **kwargs)
+    
+    @property
+    def last_message(self):
+        message = Message.objects.filter(chat = self).last()
+        return message
+    
+    @property
+    def unread_messages(self):
+        quantity = Message.objects.filter(
+            chat = self,
+            is_read = False
+            ).count()
+        return quantity
+
+
 
 
 class Message(models.Model):
