@@ -1,7 +1,6 @@
 from rest_framework.serializers import ModelSerializer
 from main import models
 
-
 class UserSerializer(ModelSerializer):
     class Meta:
         model = models.User
