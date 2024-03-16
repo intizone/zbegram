@@ -1,20 +1,15 @@
 from django.db.models import Q
-from main import models
-from . import serializers
 
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.authentication import SessionAuthentication, BasicAuthentication
 from rest_framework.views import APIView
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
-from rest_framework import status   
+from rest_framework import status
 
+from main import models
+from . import serializers
 
 
 class UserAPIView(APIView):
-    authentication_classes = [SessionAuthentication, BasicAuthentication]
-    permission_classes = [IsAuthenticated]
-
     def get(self, request, *args, **kwargs):
         q = request.GET.get('q')
         # way 1
@@ -69,8 +64,6 @@ class UserAPIView(APIView):
     
     
 class UserRelationAPIView(APIView):
-    authentication_classes = [SessionAuthentication, BasicAuthentication]
-    permission_classes = [IsAuthenticated]
 
     def get(self, request, *args, **kwargs):
         user = request.user
@@ -108,9 +101,6 @@ class UserRelationAPIView(APIView):
     
     
 class ChatAPIView(APIView):
-    authentication_classes = [SessionAuthentication, BasicAuthentication]
-    permission_classes = [IsAuthenticated]
-
     def post(self, request, *args, **kwargs):
         serializer = serializers.ChatSerializer(data=request.data)
         if serializer.is_valid():
@@ -119,6 +109,7 @@ class ChatAPIView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def get(self, request, pk=None, format=None):
+        # ChatUser modelga nisbiy holatda o`zgartirish
         user = request.user
         chats = models.Chat.objects.filter(users=user)
         chats_ser = serializers.ChatListSerializer(chats)
@@ -141,9 +132,6 @@ class ChatAPIView(APIView):
     
     
 class MassageAPIView(APIView):
-    authentication_classes = [SessionAuthentication, BasicAuthentication]
-    permission_classes = [IsAuthenticated]
-
     def post(self, request, *args, **kwargs):
         serializer = serializers.MassageSerializer(data=request.data)
         if serializer.is_valid():
@@ -174,170 +162,53 @@ class MassageAPIView(APIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
     
 
-@api_view
+
+
+@api_view(['GET'])
 def following(request, pk):
     user = models.User.objects.get(pk=pk)
     user_reletion = models.UserReletion.objects.filter(from_user=user)
     serializer_data = serializers.FollowingSerializer(user_reletion, many=True)
-    return serializer_data.data
+    return Response(serializer_data.data)
 
-@api_view
+@api_view(['GET'])
 def follower(request, pk):
     user = models.User.objects.get(pk=pk)
     user_reletion = models.UserReletion.objects.filter(to_user=user)
     serializer_data = serializers.FollowerSerializer(user_reletion, many=True)
-    return serializer_data.data
+    return Response(serializer_data.data)
 
 
-class PostAPIView(APIView):
-    authentication_classes = [SessionAuthentication, BasicAuthentication]
-    permission_classes = [IsAuthenticated]
+@api_view(['GET'])
+def user_posts(request, pk):
+    user = models.User.objects.get(pk=pk)
+    posts = models.Post.objects.filter(author=user).order_by('-date')
+    serializer_data = serializers.PostSerializer(posts, many=True)
+    return Response(serializer_data.data)
 
-    def post(self, request, *args, **kwargs):
-        serializer = serializers.PostSerializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    def get(self, request, pk=None, format=None):
-        if pk:
-            try:
-                instance = models.Post.objects.get(pk=pk)
-            except models.Post.DoesNotExist:
-                return Response({"message": "Object not found"}, status=status.HTTP_404_NOT_FOUND)
+@api_view(['GET'])
+def following_posts(request):
 
-            serializer = serializers.PostSerializer(instance)
-            return Response(serializer.data)
-        else:
-            posts = models.Post.objects.all()
-            serializer = serializers.PostSerializer(posts, many=True)
-            return Response(serializer.data)
+    models.UserReletion.objects.filter(from_user=request.user)
+    posts = []
 
-    def put(self, request, pk, *args, **kwargs):
-        try:
-            post = models.Post.objects.get(pk=pk)
-            assert post.author == request.user
-        except models.Post.DoesNotExist:
-            return Response(status=status.HTTP_404_NOT_FOUND)
+    for user in  models.UserReletion.objects.filter(from_user=request.user):
+        # posts.extend(models.Post.objects.filter(author=user.to_user))
+        posts.append(models.Post.objects.filter(author=user.to_user).order_by('date').last())
 
-        serializer = serializers.PostSerializer(post, data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    posts.sort(key= lambda x:x.date, reverse=True)
+    serializer_data = serializers.PostSerializer(data=posts, many=True)
+    serializer_data.is_valid()
 
-    def delete(self, request, pk, *args, **kwargs):
-        try:
-            post = models.Post.objects.get(pk=pk)
-            assert post.author == request.user
-        except models.Post.DoesNotExist:
-            return Response(status=status.HTTP_404_NOT_FOUND)
-        post.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
-    
-@api_view
-def post_filter(request, pk):
-    posts = models.Post.objects.filter(author=pk)
-    serializer = serializers.PostSerializer(posts, many=True)
-    return serializer.data
+    return Response(serializer_data.data)
 
-class LikeAPIView(APIView):
-    authentication_classes = [SessionAuthentication, BasicAuthentication]
-    permission_classes = [IsAuthenticated]
 
-    def post(self, request, *args, **kwargs):
-        serializer = serializers.LikeSerializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
-    def delete(self, request, pk, *args, **kwargs):
-        try:
-            like = models.Like.objects.get(pk=pk)
-            assert like.author == request.user
-        except models.Like.DoesNotExist:
-            return Response(status=status.HTTP_404_NOT_FOUND)
-        like.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
-    
-    def get(self, request, pk=None, format=None):
-        if pk:
-            try:
-                instance = models.Like.objects.get(pk=pk)
-            except models.Like.DoesNotExist:
-                return Response({"message": "Object not found"}, status=status.HTTP_404_NOT_FOUND)
+@api_view(['GET'])
+def post_detail(request, pk):
+    post = models.Post.objects.get(pk=pk)
+    comment = models.Comment.objects.filter(post=post)
+    post_serializer = serializers.PostSerializer(post).data
+    comment_serializer = serializers.CommentSerializer(comment, many=True).data
+    return Response({'post':post_serializer, 'comment':comment_serializer})
 
-            serializer = serializers.LikeSerializer(instance)
-            return Response(serializer.data)
-        else:
-            likes = models.Like.objects.all()
-            serializer = serializers.LikeSerializer(likes, many=True)
-            return Response(serializer.data)
-        
-    def put(self, request, pk, *args, **kwargs):
-        try:
-            like = models.Like.objects.get(pk=pk)
-            assert like.author == request.user
-        except models.Like.DoesNotExist:
-            return Response(status=status.HTTP_404_NOT_FOUND)
-
-        serializer = serializers.LikeSerializer(like, data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
-@api_view
-def like_filter(request, pk):
-    likes = models.Like.objects.filter(post=pk)
-    serializer = serializers.LikeSerializer(likes, many=True)
-    return serializer.data
-
-class CommentAPIView(APIView):
-    authentication_classes = [SessionAuthentication, BasicAuthentication]
-    permission_classes = [IsAuthenticated]
-
-    def post(self, request, *args, **kwargs):
-        serializer = serializers.CommentSerializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    def get(self, request, pk=None, format=None):
-        if pk:
-            try:
-                instance = models.Comment.objects.get(pk=pk)
-            except models.Comment.DoesNotExist:
-                return Response({"message": "Object not found"}, status=status.HTTP_404_NOT_FOUND)
-
-            serializer = serializers.CommentSerializer(instance)
-            return Response(serializer.data)
-        else:
-            comments = models.Comment.objects.all()
-            serializer = serializers.CommentSerializer(comments, many=True)
-            return Response(serializer.data)
-
-    def put(self, request, pk, *args, **kwargs):
-        try:
-            comment = models.Comment.objects.get(pk=pk)
-            assert comment.author == request.user
-        except models.Comment.DoesNotExist:
-            return Response(status=status.HTTP_404_NOT_FOUND)
-
-        serializer = serializers.CommentSerializer(comment, data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    def delete(self, request, pk, *args, **kwargs):
-        try:
-            comment = models.Comment.objects.get(pk=pk)
-            assert comment.author == request.user
-        except models.Comment.DoesNotExist:
-            return Response(status=status.HTTP_404_NOT_FOUND)
-        comment.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)

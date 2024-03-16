@@ -4,6 +4,7 @@ from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.conf import settings
 
+
 class User(AbstractUser):
     avatar = models.ImageField(upload_to='avatar/', blank=True, null=True)
 
@@ -20,13 +21,7 @@ class UserReletion(models.Model):
 
 
 class Chat(models.Model):
-    users = models.ManyToManyField(User)
 
-    def save(self, *args, **kwargs):
-        if len(self.users) > 2:
-            raise AssertionError('Bu shaxsiy')
-        super(Chat, self).save(*args, **kwargs)
-    
     @property
     def last_message(self):
         message = Message.objects.filter(chat = self).last()
@@ -39,8 +34,28 @@ class Chat(models.Model):
             is_read = False
             ).count()
         return quantity
+    
+    def save(self,*args, **kwargs):
+        while True:
+            code = '123' # random
+            try:
+                Chat.objects.get(code=code)
+            except:
+                self.code = code
+                super(Chat, self).save(*args, **kwargs)
+                break
 
 
+
+
+class ChatUser(models.Model):
+    chat = models.ForeignKey(Chat, on_delete=models.CASCADE)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+
+    def save(self, *args, **kwargs):
+        if ChatUser.objects.filter(chat=self.chat).count() > 2:
+            raise ValueError('...')
+        super(ChatUser, self).save(*args, **kwargs)
 
 
 class Message(models.Model):
@@ -61,16 +76,25 @@ class Post(models.Model):
     body = models.TextField()
     date = models.DateTimeField(auto_now_add=True)
 
+    @property
+    def like(self):
+        return Like.objects.filter(post=self, status=True).count()
+
+    @property
+    def dislike(self):
+        return Like.objects.filter(post=self, status=False).count()
 
 class PostFiles(models.Model):
-    post = models.ForeignKey(Post, on_delete=models.CASCADE)
+    post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name='files')
     file = models.FileField(upload_to='post/')
 
+  
     def delete(self, *args, **kwargs):
         file_path = os.path.join(settings.MEDIA_ROOT, str(self.file))
         if os.path.isfile(file_path):
             os.remove(file_path)
         super(PostFiles, self).delete(*args, **kwargs)
+
 
 
 class Comment(models.Model):
