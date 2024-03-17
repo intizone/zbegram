@@ -52,6 +52,7 @@ class FileSerializer(ModelSerializer):
 
 class PostSerializer(ModelSerializer):
     files = FileSerializer(many=True, read_only=True)
+    files = FileSerializer(many=True, read_only=True)
     class Meta:
         model = models.Post
         fields = ['code', 'title', 'author', 'body' , 'date', 'like', 'dislike', 'files']

@@ -9,12 +9,11 @@ from rest_framework.decorators import api_view
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.authentication import SessionAuthentication, BasicAuthentication
 
+from main import models
+from . import serializers
 
 
 class UserAPIView(APIView):
-    authentication_classes = [SessionAuthentication, BasicAuthentication]
-    permission_classes = [IsAuthenticated]
-
     def get(self, request, *args, **kwargs):
         q = request.GET.get('q')
         # way 1
@@ -58,8 +57,6 @@ class UserAPIView(APIView):
     
     
 class UserRelationAPIView(APIView):
-    authentication_classes = [SessionAuthentication, BasicAuthentication]
-    permission_classes = [IsAuthenticated]
 
     def get(self, request, *args, **kwargs):
         user = request.user
@@ -100,9 +97,6 @@ class UserRelationAPIView(APIView):
     
     
 class ChatAPIView(APIView):
-    authentication_classes = [SessionAuthentication, BasicAuthentication]
-    permission_classes = [IsAuthenticated]
-
     def post(self, request, *args, **kwargs):
         serializer = serializers.ChatSerializer(data=request.data)
         if serializer.is_valid():
@@ -126,9 +120,6 @@ class ChatAPIView(APIView):
     
     
 class MassageAPIView(APIView):
-    authentication_classes = [SessionAuthentication, BasicAuthentication]
-    permission_classes = [IsAuthenticated]
-
     def post(self, request, *args, **kwargs):
         serializer = serializers.MassageSerializer(data=request.data)
         if serializer.is_valid():
@@ -164,7 +155,7 @@ def following(request, code):
     user = models.User.objects.get(code=code)
     user_reletion = models.UserReletion.objects.filter(from_user=user)
     serializer_data = serializers.FollowingSerializer(user_reletion, many=True)
-    return serializer_data.data
+    return Response(serializer_data.data)
 
 @api_view
 def follower(request, code):

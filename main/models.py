@@ -72,7 +72,7 @@ class Post(models.Model):
         return Like.objects.filter(post=self, status=False).count()
 
 class PostFiles(models.Model):
-    post = models.ForeignKey(Post, on_delete=models.CASCADE)
+    post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name='files')
     file = models.FileField(upload_to='post/')
 
 class Comment(models.Model):
