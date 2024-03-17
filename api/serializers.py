@@ -1,12 +1,11 @@
 from rest_framework.serializers import ModelSerializer
-
 from main import models
 
 
 class UserSerializer(ModelSerializer):
     class Meta:
         model = models.User
-        fields = ['username', 'email', 'first_name', 'last_name', 'avatar', 'last_login']
+        fields = ['code', 'username', 'email', 'first_name', 'last_name', 'avatar', 'last_login']
         
 
 class UserRealtionSerializer(ModelSerializer):
@@ -32,7 +31,7 @@ class FollowerSerializer(ModelSerializer):
 class ChatSerializer(ModelSerializer):
     class Meta:
         model = models.Chat
-        fields = ['id', 'username']
+        fields = ['code', 'username']
         
         
 class MassageSerializer(ModelSerializer):
@@ -44,22 +43,23 @@ class ChatListSerializer(ModelSerializer):
     last_message = MassageSerializer(read_only=True)
     class Meta:
         model = models.Chat
-        fields = ['id', 'last_message', 'unread_messages', 'users']
+        fields = ['code', 'last_message', 'unread_messages', 'users']
 
-class PostSerializer(ModelSerializer):
-    class Meta:
-        model = models.Post
-        fields = ['author', 'title', 'body']
-
-class PostFilesSerializer(ModelSerializer):
+class FileSerializer(ModelSerializer):
     class Meta:
         model = models.PostFiles
-        fields = '__all__'
+        fields = ['file',]
+
+class PostSerializer(ModelSerializer):
+    files = FileSerializer(many=True, read_only=True)
+    class Meta:
+        model = models.Post
+        fields = ['code', 'title', 'author', 'body' , 'date', 'like', 'dislike', 'files']
 
 class CommentSerializer(ModelSerializer):
     class Meta:
         model = models.Comment
-        fields = ['author', 'post', 'text', 'reply']
+        fields = '__all__'
 
 class LikeSerializer(ModelSerializer):
     class Meta:
